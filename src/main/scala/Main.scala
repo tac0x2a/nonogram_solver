@@ -123,7 +123,10 @@ object NonoSolv {
 
       }
     }
-  }
+  } // end of detectRectangles
+
+
+
 }
 
 object Main {
@@ -148,6 +151,37 @@ object Main {
     Imgproc.dilate(src, src, new Mat)
     Imgproc.erode(src, src, new Mat)
     Imgproc.Canny(src, src, 80,100)
+
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+
+
+val ocrFilePath = imgDirPath  + "ocr.png"
+Imgcodecs.imwrite(ocrFilePath, src)
+
+
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+    Imgproc.dilate(src, src, new Mat)
+
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+    Imgproc.erode(src, src, new Mat)
+
+val tmpFilePath = imgDirPath  + "fillter.jpg"
+Imgcodecs.imwrite(tmpFilePath, src)
 
     // x,y方向のエッジを抽出
     val linesV = NonoSolv.edge_v(src, 20)
@@ -200,8 +234,32 @@ object Main {
     Imgcodecs.imwrite(dstFilePath, dst)
 
 
-    // 切り出してみる
-    points.flatten.foreach { p => println(p.toList()) }
+
+
+    // OCRしてみる
+    import java.io.File
+    val ocrImg = new File(imgDirPath + "src.jpg")
+
+    import net.sourceforge.tess4j._
+    val tess: Tesseract = Tesseract.getInstance()
+
+    val options = java.util.Arrays.asList("digits", "quiet")
+    tess.setConfigs( options )
+
+    import java.awt.Rectangle
+    points.flatten.foreach { p =>
+      val Tuple2(ltx, lty) = Tuple2(p.toArray.head.x.toInt, p.toArray.head.y.toInt)
+      val Tuple2(rbx, rby) = Tuple2(p.toArray.last.x.toInt, p.toArray.last.y.toInt)
+
+      printf("OCR Region = (%d,%d),(%d,%d)\n", ltx, lty, rbx, rby)
+
+      val rect: Rectangle = new Rectangle(ltx, lty, rbx, rby)
+
+      val res: String = tess.doOCR(ocrImg, rect)
+
+      println(res)
+    }
+
 
   }
 
