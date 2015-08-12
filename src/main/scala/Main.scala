@@ -2,7 +2,7 @@
 
 import java.lang.Math
 import org.opencv.core.{Core, CvType, Mat, MatOfPoint, Point, Scalar}
-import org.opencv.highgui.Highgui
+import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc
 
 object NonoSolv {
@@ -19,15 +19,16 @@ object NonoSolv {
     Imgproc.Sobel(src, procImg, CvType.CV_8U, x_order, y_order, averture, scale, delta)
 
     // ハフ変換で直線検出
-    val houghThreshold = 300
-    val minLineSize = procImg.rows / 3
+    val houghThreshold = 80
+    val minLineSize = procImg.rows / 10
     val lineGap = 10
+    val rad = Math.PI / 180
     var result = new Mat
-    Imgproc.HoughLinesP(procImg, result, 1, Math.PI / 180, houghThreshold, minLineSize, lineGap)
+    Imgproc.HoughLinesP(procImg, result, 1, rad, houghThreshold, minLineSize, lineGap)
 
     // x方向にソートして始点終点のタプルにする
-    val lines: List[Tuple2[Point,Point]] = (0 to result.cols - 1)
-      .map { i => result.get(0, i) }
+    val lines: List[Tuple2[Point,Point]] = (0 to result.rows - 1)
+      .map { i => result.get(i, 0) }
       .map { vec => (new Point(vec(0), vec(1)), new Point(vec(2), vec(3)))}
       .sortBy { case (start,end) =>  (end.x + start.x) / 2 }.toList
 
@@ -60,15 +61,16 @@ object NonoSolv {
     Imgproc.Sobel(src, procImg, CvType.CV_8U, x_order, y_order, averture, scale, delta)
 
     // ハフ変換で直線検出
-    val houghThreshold = 300
-    val minLineSize = procImg.rows / 3
+    val houghThreshold = 100
+    val minLineSize = procImg.rows / 10
     val lineGap = 10
+    val rad = Math.PI / 180
     var result = new Mat
-    Imgproc.HoughLinesP(procImg, result, 1, Math.PI / 180, houghThreshold, minLineSize, lineGap)
+    Imgproc.HoughLinesP(procImg, result, 1, rad, houghThreshold, minLineSize, lineGap)
 
     // y方向にソートして始点終点のタプルにする
-    val lines: List[Tuple2[Point,Point]] = (0 to result.cols - 1)
-      .map { i => result.get(0, i) }
+    val lines: List[Tuple2[Point,Point]] = (0 to result.rows - 1)
+      .map { i => result.get(i, 0) }
       .map { vec => (new Point(vec(0), vec(1)), new Point(vec(2), vec(3)))}
       .sortBy { case (start,end) =>  (end.y + start.y) / 2 }.toList
 
@@ -102,7 +104,7 @@ object NonoSolv {
   }
 
   // 与えられた縦v本、横h本のから、(v-1)x(h-x)の格子を計算して返す
-  def detectRectangles( vLines:List[Tuple2[Point,Point]], hLines:List[Tuple2[Point,Point]] ) = {
+  def detectRectangles( vLines:List[Tuple2[Point,Point]], hLines:List[Tuple2[Point,Point]] ): Seq[Seq[MatOfPoint]] = {
 
     0 to hLines.size -2 map {   h =>
       val hLine = hLines(h)
@@ -129,22 +131,23 @@ object Main {
   // 画像ファイルへのパスを取得
   val imgDirPath = getClass.getResource(".").getPath + "../../../src/main/resource/"
 
-  val filePath = imgDirPath + "src.jpg"
+  val srcFilePath = imgDirPath + "src.jpg"
 
-  val dstFilePath = imgDirPath + "edge.png"
+
 
   def sample = {
     println("Load OpenCV" + Core.VERSION)
     System.loadLibrary(Core.NATIVE_LIBRARY_NAME)
 
     // 画像ファイルの読み込み
-    val src = Highgui.imread(filePath, CvType.CV_8U)
+    val src = Imgcodecs.imread(srcFilePath, CvType.CV_8U)
+
+    Imgproc.threshold(src, src, 0.0, 255.0, Imgproc.THRESH_TRIANGLE)
 
     // 膨張収縮でノイズ除去
     Imgproc.dilate(src, src, new Mat)
-    Imgproc.dilate(src, src, new Mat)
     Imgproc.erode(src, src, new Mat)
-    Imgproc.erode(src, src, new Mat)
+    Imgproc.Canny(src, src, 80,100)
 
     // x,y方向のエッジを抽出
     val linesV = NonoSolv.edge_v(src, 20)
@@ -173,23 +176,33 @@ object Main {
     }
 
     // 描画して出力
-    val dst = Highgui.imread(filePath)
-    fixLinesV.foreach{ case (start,end) => Core.line(dst, start, end, new Scalar(255,0,0), 5)}
-    fixLinesH.foreach{ case (start,end) => Core.line(dst, start, end, new Scalar(0,0,255), 5)}
+    val dst = Imgcodecs.imread(srcFilePath)
+
+    fixLinesV.foreach{ case (start,end) => Imgproc.line(dst, start, end, new Scalar(255,0,0), 5)}
+    fixLinesH.foreach{ case (start,end) => Imgproc.line(dst, start, end, new Scalar(0,0,255), 5)}
+
+    val detectedImgPath = imgDirPath + "linedetected.png"
+    Imgcodecs.imwrite(detectedImgPath, dst)
 
     val points = NonoSolv.detectRectangles(fixLinesV, fixLinesH)
     var t = 2
     points.flatten.foreach{ p =>
       (t % 3) match {
-        case 0 => Core.fillConvexPoly(dst, p, new Scalar(255-(t*5), (t*5), 0))
-        case 1 => Core.fillConvexPoly(dst, p, new Scalar((t*5), 255-t, 0))
-        case 2 => Core.fillConvexPoly(dst, p, new Scalar(255-t, 255-t, (t*5)))
+        case 0 => Imgproc.fillConvexPoly(dst, p, new Scalar(255-(t*5), (t*5), 0))
+        case 1 => Imgproc.fillConvexPoly(dst, p, new Scalar((t*5), 255-t, 0))
+        case 2 => Imgproc.fillConvexPoly(dst, p, new Scalar(255-t, 255-t, (t*5)))
       }
       t += 1
     }
 
     // 画像ファイルの書き込み
-    Highgui.imwrite(dstFilePath, dst)
+    val dstFilePath = imgDirPath + "output.png"
+    Imgcodecs.imwrite(dstFilePath, dst)
+
+
+    // 切り出してみる
+    points.flatten.foreach { p => println(p.toList()) }
+
   }
 
   def main(args: Array[String]) {
